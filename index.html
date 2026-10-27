@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Focus">
+<meta name="theme-color" content="#151326">
+<title>Focus</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap">
+<style>
+:root{--fg:#fff;--dim:rgba(255,255,255,.5);--btn:rgba(40,12,90,.55)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#151326}
+body{font-family:"Space Grotesk","Helvetica Neue",Arial,sans-serif;color:var(--fg);position:relative;
+  background:
+   radial-gradient(150% 95% at 112% 112%,#e8735a 0%,#d4665a 14%,rgba(196,84,128,.85) 34%,rgba(130,45,180,0) 70%),
+   radial-gradient(75% 55% at 108% 58%,rgba(150,60,220,.75) 0%,rgba(150,60,220,0) 72%),
+   radial-gradient(70% 55% at 0% 100%,rgba(100,40,190,.7) 0%,rgba(100,40,190,0) 70%),
+   linear-gradient(155deg,#10101c 0%,#1a1540 30%,#3f1a96 58%,#5f27b0 82%,#7a2fb8 100%);
+  user-select:none;-webkit-user-select:none}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.22;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.page{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;
+  padding:calc(env(safe-area-inset-top,0px) + 20px) calc(env(safe-area-inset-right,0px) + 24px) calc(env(safe-area-inset-bottom,0px) + 20px) calc(env(safe-area-inset-left,0px) + 24px)}
+.quote{margin:0;text-align:center;font-weight:500;font-size:clamp(22px,6.2vw,40px);line-height:1.15;max-width:15em;text-wrap:balance}
+.main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.2vh;padding-top:8vh}
+.modes{display:flex;gap:clamp(14px,4vw,28px)}
+.tab{background:none;border:0;color:var(--dim);font:500 clamp(14px,3.9vw,20px)/1 inherit;font-family:inherit;text-transform:uppercase;cursor:pointer;padding:6px 2px}
+.tab.on{color:#fff}
+.dots{display:flex;gap:10px;margin-top:-.6vh}
+.dot{width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.4)}
+.dot.on{background:#fff}
+.time{font-weight:700;font-size:min(27vw,30vh);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;cursor:pointer}
+.ctrl{display:flex;gap:14px}
+.btn{width:clamp(54px,14vw,68px);height:clamp(54px,14vw,68px);border:0;border-radius:18px;background:var(--btn);display:grid;place-items:center;cursor:pointer;color:#fff}
+.btn svg{width:46%;height:46%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+input.edit{font:inherit;font-weight:700;font-size:min(27vw,30vh);width:3.4em;text-align:center;background:transparent;border:0;border-bottom:3px solid #fff;color:#fff;outline:none;padding:0}
+@media (orientation:landscape) and (max-height:520px){
+  .page{flex-direction:row;align-items:center;gap:3vw}
+  .quote{flex:1;font-size:clamp(18px,3.4vw,30px);text-align:left;max-width:none}
+  .main{flex:1.4;padding-top:0;gap:1.5vh}
+  .time{font-size:min(20vw,38vh)}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <p class="quote" id="quote"></p>
+  <div class="main">
+    <div class="modes" id="modes"></div>
+    <div class="dots" id="dots"></div>
+    <div class="time" id="time">25:00</div>
+    <div class="ctrl">
+      <button class="btn" id="go" aria-label="Start"></button>
+      <button class="btn" id="reset" aria-label="Reset"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg></button>
+    </div>
+  </div>
+</div>
+<script>
+const QUOTES=["“Great results require great ambitions”","“Small steps, taken daily, go far”","“Focus on the next right thing”","“Start where you are, use what you have”"];
+const MODES=[{n:"Focus",m:25},{n:"Short break",m:5},{n:"Long break",m:15}];
+const PLAY='<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z"/></svg>',PAUSE='<svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>';
+let cur=0,total=1500,left=1500,end=0,timer=null,done=0,wake=null;
+const $=id=>document.getElementById(id);
+try{const s=JSON.parse(localStorage.getItem("focus2")||"{}");if(s.mins)MODES.forEach((m,i)=>m.m=s.mins[i]||m.m);done=s.done||0}catch(e){}
+function save(){try{localStorage.setItem("focus2",JSON.stringify({mins:MODES.map(m=>m.m),done}))}catch(e){}}
+function fmt(s){s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
+function draw(){$("time").textContent=fmt(left);document.title=(timer?fmt(left)+" · ":"")+"Focus";
+  $("go").innerHTML=timer?PAUSE:PLAY;
+  [...$("modes").children].forEach((b,i)=>b.classList.toggle("on",i===cur));
+  [...$("dots").children].forEach((d,i)=>d.classList.toggle("on",i===done%4))}
+function setMode(i){stop();cur=i;total=MODES[i].m*60;left=total;draw()}
+MODES.forEach((m,i)=>{const b=document.createElement("button");b.className="tab";b.textContent=m.n;b.onclick=()=>setMode(i);$("modes").appendChild(b)});
+for(let i=0;i<4;i++){const d=document.createElement("span");d.className="dot";$("dots").appendChild(d)}
+$("quote").textContent=QUOTES[0];
+async function lock(){try{if(navigator.wakeLock)wake=await navigator.wakeLock.request("screen")}catch(e){}}
+function unlock(){try{wake&&wake.release()}catch(e){}wake=null}
+function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)();[0,.3,.6].forEach(t=>{const o=a.createOscillator(),g=a.createGain();o.frequency.value=880;o.connect(g);g.connect(a.destination);g.gain.setValueAtTime(.2,a.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+t+.25);o.start(a.currentTime+t);o.stop(a.currentTime+t+.25)})}catch(e){}if(navigator.vibrate)navigator.vibrate([200,100,200])}
+function tick(){left=(end-Date.now())/1000;if(left<=0){left=0;stop();if(cur===0){done++;save()}beep();draw();return}draw()}
+function start(){if(timer)return;end=Date.now()+left*1000;timer=setInterval(tick,250);lock();draw()}
+function stop(){clearInterval(timer);timer=null;unlock();draw()}
+$("go").onclick=()=>timer?stop():start();
+$("reset").onclick=()=>{stop();left=total;draw()};
+document.addEventListener("visibilitychange",()=>{if(timer){tick();if(!document.hidden)lock()}});
+$("time").onclick=()=>{if(timer)return;const t=$("time"),i=document.createElement("input");i.className="edit";i.type="number";i.inputMode="numeric";i.min=1;i.max=180;i.value=MODES[cur].m;
+  t.replaceWith(i);i.focus();i.select();
+  const ok=()=>{const v=Math.min(180,Math.max(1,parseInt(i.value)||MODES[cur].m));MODES[cur].m=v;save();i.replaceWith(t);setMode(cur)};
+  i.onblur=ok;i.onkeydown=e=>{if(e.key==="Enter")i.blur()}};
+setMode(0);
+
+/* iOS launch screen: draw the same gradient as startup images sized for this exact device */
+(function(){try{
+  const d=window.devicePixelRatio||1,a=Math.min(screen.width,screen.height),b=Math.max(screen.width,screen.height);
+  function paint(W,H){const c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d"),m=Math.max(W,H);
+    const g=x.createLinearGradient(0,0,W,H);
+    [[0,"#10101c"],[.3,"#1a1540"],[.58,"#3f1a96"],[.82,"#5f27b0"],[1,"#7a2fb8"]].forEach(s=>g.addColorStop(s[0],s[1]));
+    x.fillStyle=g;x.fillRect(0,0,W,H);
+    const blob=(cx,cy,r,st)=>{const rg=x.createRadialGradient(cx,cy,0,cx,cy,r);st.forEach(s=>rg.addColorStop(s[0],s[1]));x.fillStyle=rg;x.fillRect(0,0,W,H)};
+    blob(W*1.08,H*1.08,m*.85,[[0,"#e8735a"],[.18,"#d4665a"],[.42,"rgba(196,84,128,.8)"],[1,"rgba(130,45,180,0)"]]);
+    blob(W*1.05,H*.58,m*.5,[[0,"rgba(150,60,220,.7)"],[1,"rgba(150,60,220,0)"]]);
+    blob(0,H,m*.5,[[0,"rgba(100,40,190,.65)"],[1,"rgba(100,40,190,0)"]]);
+    return c}
+  [[a,b,"portrait"],[b,a,"landscape"]].forEach(function(p){
+    const c=paint(Math.round(p[0]*d),Math.round(p[1]*d)),l=document.createElement("link");
+    l.rel="apple-touch-startup-image";l.href=c.toDataURL("image/jpeg",.92);
+    l.media="(device-width:"+a+"px) and (device-height:"+b+"px) and (-webkit-device-pixel-ratio:"+d+") and (orientation:"+p[2]+")";
+    document.head.appendChild(l)});
+  const ic=paint(180,180),x=ic.getContext("2d");x.strokeStyle="#fff";x.lineWidth=12;x.lineCap="round";
+  x.beginPath();x.arc(90,90,44,0,Math.PI*2);x.stroke();x.beginPath();x.moveTo(90,90);x.lineTo(90,62);x.moveTo(90,90);x.lineTo(108,100);x.stroke();
+  const li=document.createElement("link");li.rel="apple-touch-icon";li.href=ic.toDataURL("image/png");document.head.appendChild(li);
+}catch(e){}})();
+</script>
+</body>
+</html>
